@@ -1,0 +1,280 @@
+/* ===============================
+   FIXED TOP / BOTTOM BARS
+================================ */
+.top-white-band,
+.bottom-white-band {
+  position: fixed;
+  width: 100%;
+  height: 90px;
+  background: #ffffff;
+  z-index: 9999;
+}
+.top-white-band {
+  top: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.bottom-white-band {
+  bottom: 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* ===============================
+   MAIN VIEWER AREA
+================================ */
+.viewer-container {
+  background: #eef1f4;
+  margin-top: 90px;
+  margin-bottom: 90px;
+  padding: 20px 0;
+  min-height: calc(100vh - 180px);
+}
+
+/* ===============================
+   PDF PAGES
+================================ */
+.pages-wrapper {
+  width: 900px;
+  margin: auto;
+}
+.page-container {
+  width: 900px;
+  margin-bottom: 25px;
+}
+.pdf-page {
+  width: 900px;
+  background: white;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.2);
+}
+.page-number-outside {
+  width: 900px;
+  text-align: right;
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* ===============================
+   SIGNATURE BLOCK
+================================ */
+.signature-overlay {
+  width: 900px;
+  margin: 40px auto;
+}
+.collapsed-signature {
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.signature-expanded {
+  background: #ffffff;
+  padding: 22px;
+  margin-top: 15px;
+  border-radius: 6px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* ===============================
+   SELECT & LABELS
+================================ */
+.label-cert {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 4px;
+  display: block;
+}
+.ngsign-select {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* ===============================
+   INFO BOXES
+================================ */
+.info-digigo {
+  background: #e6f7ff;
+  border-left: 4px solid #00a2ff;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #333;
+}
+.info-sscd {
+  background: #f1edf7;
+  border-left: 4px solid #c6b6f3;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #333;
+}
+
+/* ===============================
+   CERTIFICATE BOX
+================================ */
+.cert-box {
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e2e2e2;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+/* HEADER */
+.cert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.cert-owner {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+  color: #222;
+}
+.cert-issued {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 6px;
+}
+.cert-toggle {
+  font-size: 13px;
+  color: #1a73e8;
+  cursor: pointer;
+  display: inline-block;
+}
+
+/* CARET */
+.caret {
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s ease;
+}
+.caret.open {
+  transform: rotate(180deg);
+}
+
+/* ===============================
+   CERTIFICATE DETAILS
+================================ */
+.cert-details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eeeeee;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  padding: 6px 0;
+  font-size: 13px;
+  align-items: flex-start;
+}
+.detail-label {
+  color: #777;
+}
+.detail-value {
+  color: #222;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* LONG DN / SERIAL */
+.mono {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+/* ===============================
+   SIGN BUTTON WRAPPER — centers the button
+   whether details are open or closed
+================================ */
+.btn-sign-wrapper {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+/* ===============================
+   SIGN BUTTON
+================================ */
+.btn-sign {
+  display: block;
+  padding: 8px 26px;
+  background: #c6b6f3;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.btn-sign:hover {
+  background: #b5a2ef;
+}
+.btn-sign:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ===============================
+   CHECKBOX COLOR
+================================ */
+input[type="checkbox"]:checked {
+  accent-color: #c6b6f3;
+}
+
+/* ===============================
+   RESPONSIVE
+================================ */
+@media (max-width: 1024px) {
+  .pages-wrapper,
+  .page-container,
+  .pdf-page,
+  .page-number-outside,
+  .signature-overlay {
+    width: 100%;
+  }
+  .pdf-page {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .viewer-container {
+    padding: 10px;
+  }
+  .signature-expanded {
+    padding: 16px;
+  }
+  .detail-row {
+    grid-template-columns: 1fr;
+  }
+  .mono {
+    font-size: 11px;
+  }
+  .btn-sign {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .collapsed-signature {
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .cert-owner {
+    font-size: 14px;
+  }
+  .cert-issued {
+    font-size: 12px;
+  }
+}
