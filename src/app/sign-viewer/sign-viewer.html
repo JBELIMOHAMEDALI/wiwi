@@ -2,7 +2,20 @@
 
 <div class="viewer-container">
 
-    <div class="pages-wrapper">
+    <!-- SUCCESS SCREEN -->
+    <div class="success-screen" *ngIf="signedSuccess">
+        <div class="success-card">
+            <div class="success-icon">✅</div>
+            <h2 class="success-title">Document signé avec succès</h2>
+            <p class="success-msg">
+                Votre signature a bien été enregistrée.<br/>
+                Vous pouvez fermer cette fenêtre.
+            </p>
+        </div>
+    </div>
+
+    <!-- PDF PAGES -->
+    <div class="pages-wrapper" *ngIf="!signedSuccess">
         <div class="page-container" *ngFor="let p of pdfPages">
             <img [src]="p.img" class="pdf-page" />
             <div class="page-number-outside">
@@ -11,9 +24,9 @@
         </div>
     </div>
 
-    <div class="signature-overlay" *ngIf="pdfPages.length > 0">
+    <!-- SIGNATURE PANEL -->
+    <div class="signature-overlay" *ngIf="pdfPages.length > 0 && !signedSuccess">
 
-        <!-- TERMS -->
         <div class="collapsed-signature">
             <input type="checkbox" [(ngModel)]="termsAccepted" />
             <label>
@@ -35,10 +48,8 @@
                 Liste des certificats détectés sur ce poste
             </div>
 
-            <!-- CERTIFICATE -->
             <div *ngFor="let cert of certificates; let i = index" class="cert-box">
 
-                <!-- HEADER -->
                 <div class="cert-header">
                     <div>
                         <div class="cert-owner">{{ cert.alias }}</div>
@@ -55,7 +66,6 @@
                     </span>
                 </div>
 
-                <!-- DETAILS -->
                 <div class="cert-details" *ngIf="expandedCertIndex === i">
 
                     <div class="detail-row">
@@ -91,9 +101,7 @@
                     </div>
 
                 </div>
-                <!-- END DETAILS -->
 
-                <!-- BUTTON — always visible, always centered -->
                 <div class="btn-sign-wrapper">
                     <button class="btn-sign" (click)="signWithCert(cert)">
                         Signer avec ce certificat
@@ -101,7 +109,6 @@
                 </div>
 
             </div>
-            <!-- END CERTIFICATE -->
 
         </div>
     </div>

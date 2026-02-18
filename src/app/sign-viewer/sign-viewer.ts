@@ -82,10 +82,11 @@ export class SignViewer implements OnInit, OnDestroy {
   certificates:      SscdCertificate[] = [];
   expandedCertIndex: number | null     = null;
   selectedCertAlias: string | null     = null;
+  signedSuccess      = false;
 
   // ── Private state ─────────────────────────────────────────────────────────
   private signingSessionId: string | null = null;
-  private isSigning = false;                   // double-submit guard
+  private isSigning = false;
 
   constructor(
     private http:      HttpClient,
@@ -125,8 +126,8 @@ export class SignViewer implements OnInit, OnDestroy {
           .pipe(takeUntil(this.destroy$))
       );
 
-      objectUrl  = URL.createObjectURL(pdfBlob);
-      const pdf  = await pdfjsLib.getDocument(objectUrl).promise;
+      objectUrl = URL.createObjectURL(pdfBlob);
+      const pdf = await pdfjsLib.getDocument(objectUrl).promise;
       const pages: PdfPage[] = [];
 
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -151,11 +152,28 @@ export class SignViewer implements OnInit, OnDestroy {
 
       this.pdfPages = pages;
 
-    } catch (error: unknown) {
-      console.error('[loadPdf]', error);
-      this.showError('Erreur lors du chargement du PDF.');
-    } finally {
-      if (objectUrl) URL.revokeObjectURL(objectUrl); // prevent memory leak
+} catch (error: any) {
+  console.error('[loadPdf]', error);
+
+  let message = 'Erreur lors du chargement du PDF.';
+
+  if (error?.error instanceof Blob) {
+    try {
+      const text = await error.error.text();
+      const json = JSON.parse(text);
+      message = json?.message || message;
+    } catch {
+      message = await error.error.text();
+    }
+  } 
+  else if (error?.error?.message) {
+    message = error.error.message;
+  }
+  this.showError(message);
+}
+
+ finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     }
   }
 
@@ -212,31 +230,32 @@ export class SignViewer implements OnInit, OnDestroy {
     }
   }
 
-// ── Step 1: Accept document → signingSessionId ───────────────────────────
-private async acceptDocument(): Promise<void> {
-  const url = `${API_BASE}/api/sign/${this.documentId}/accept`;
+  // ── Step 1: Accept document → signingSessionId ───────────────────────────
 
-  try {
-    const response = await firstValueFrom(
-      this.http.post<AcceptDocumentResponse>(
-        url,
-        {},                              // ✅ actual empty body
-        { headers: this.jsonHeaders() }  // ✅ options as 3rd argument
-      )
-    );
+  private async acceptDocument(): Promise<void> {
+    const url = `${API_BASE}/api/sign/${this.documentId}/accept`;
 
-    if (!response?.signingSessionId) {
-      throw new Error("signingSessionId absent de la réponse d'acceptation.");
+    try {
+      const response = await firstValueFrom(
+        this.http.post<AcceptDocumentResponse>(
+          url,
+          {},
+          { headers: this.jsonHeaders() }
+        )
+      );
+
+      if (!response?.signingSessionId) {
+        throw new Error("signingSessionId absent de la réponse d'acceptation.");
+      }
+
+      this.signingSessionId = response.signingSessionId;
+
+    } catch (error: unknown) {
+      console.error('[acceptDocument]', error);
+      const msg = this.extractServerMessage(error);
+      throw new Error(msg ?? "Impossible d'accepter le document. Veuillez réessayer.");
     }
-
-    this.signingSessionId = response.signingSessionId;
-
-  } catch (error: unknown) {
-    console.error('[acceptDocument]', error);
-    const msg = this.extractServerMessage(error);
-    throw new Error(msg ?? "Impossible d'accepter le document. Veuillez réessayer.");
   }
-}
 
   // ── Step 2: Prepare → digest ──────────────────────────────────────────────
 
@@ -264,7 +283,8 @@ private async acceptDocument(): Promise<void> {
 
     } catch (error: unknown) {
       console.error('[prepareSign]', error);
-      throw new Error('Échec de la préparation de la signature. Veuillez réessayer.');
+      const msg = this.extractServerMessage(error);
+      throw new Error(msg ?? 'Échec de la préparation de la signature. Veuillez réessayer.');
     }
   }
 
@@ -296,7 +316,7 @@ private async acceptDocument(): Promise<void> {
     } catch (error: unknown) {
       console.error('[signViaAgent]', error);
 
-      if (error instanceof Error) throw error; // re-throw our own typed errors
+      if (error instanceof Error) throw error;
 
       const httpError = error as { status?: number };
       if (httpError?.status === 0) {
@@ -310,43 +330,37 @@ private async acceptDocument(): Promise<void> {
   }
 
   // ── Step 4: Complete signature on server ──────────────────────────────────
-private async completeSign(
-  agentResponse: AgentSignResponse,
-  cert: SscdCertificate
-): Promise<void> {
-  const url = `${API_BASE}/api/sign/${this.documentId}/complete`;
 
-  const payload = {
-    signingSessionId: this.signingSessionId,
-    signatureValue:   agentResponse.signatureValue,
-    certificate:      agentResponse.certificate,
-    algorithm:        cert.algorithm,
-  };
+  private async completeSign(
+    agentResponse: AgentSignResponse,
+    cert:          SscdCertificate
+  ): Promise<void> {
+    const url = `${API_BASE}/api/sign/${this.documentId}/complete`;
 
-  try {
-    const response = await firstValueFrom(
-      this.http.post<CompleteSignResponse>(url, payload, {
-        headers: this.jsonHeaders(),
-      })
-    );
-    console.info('[completeSign] Serveur :', response);
+    const payload = {
+      signingSessionId: this.signingSessionId,
+      signatureValue:   agentResponse.signatureValue,
+      certificate:      agentResponse.certificate,
+      algorithm:        cert.algorithm,
+    };
 
-  } catch (error: unknown) {
-    console.error('[completeSign]', error);
-    // ✅ Extract the real backend message for debugging
-    const msg = this.extractServerMessage(error);
-    throw new Error(
-      msg ?? 'Échec de la finalisation de la signature. Veuillez contacter le support.'
-    );
+    try {
+      const response = await firstValueFrom(
+        this.http.post<CompleteSignResponse>(url, payload, {
+          headers: this.jsonHeaders(),
+        })
+      );
+
+      console.info('[completeSign] Serveur :', response);
+
+    } catch (error: unknown) {
+      console.error('[completeSign]', error);
+      const msg = this.extractServerMessage(error);
+      throw new Error(
+        msg ?? 'Échec de la finalisation de la signature. Veuillez contacter le support.'
+      );
+    }
   }
-}
-
-// ── Utility: extract real server error message ────────────────────────────
-private extractServerMessage(error: unknown): string | null {
-  if (!error || typeof error !== 'object') return null;
-  const e = error as { error?: { message?: string }; message?: string; status?: number };
-  return e?.error?.message ?? e?.message ?? null;
-}
 
   // ── Main signing orchestration ────────────────────────────────────────────
 
@@ -361,7 +375,7 @@ private extractServerMessage(error: unknown): string | null {
       return;
     }
 
-    if (this.isSigning) return; // prevent double-submit
+    if (this.isSigning) return;
     this.isSigning = true;
 
     this.showLoading('Vérification du certificat...');
@@ -387,19 +401,31 @@ private extractServerMessage(error: unknown): string | null {
       this.updateLoading('Finalisation de la signature...');
       await this.completeSign(agentResponse, cert);
 
+      // 6 – Success: show Swal then switch to success screen
       Swal.fire({
-        icon: 'success', title: 'Succès',
-        text: 'Le document a été signé avec succès.',
+        icon:              'success',
+        title:             'Document signé !',
+        text:              'Le document a été signé avec succès.',
         confirmButtonText: 'OK',
+        allowOutsideClick: false,
+        allowEscapeKey:    false,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.pdfPages        = [];
+          this.termsAccepted   = false;
+          this.certificates    = [];
+          this.selectedCert    = '';
+          this.signedSuccess   = true;
+        }
       });
 
     } catch (error: unknown) {
       console.error('[signWithCert]', error);
 
       Swal.fire({
-        icon:  'error',
-        title: 'Erreur de signature',
-        text:  error instanceof Error
+        icon:              'error',
+        title:             'Erreur de signature',
+        text:              error instanceof Error
           ? error.message
           : 'Une erreur inattendue est survenue lors de la signature.',
         confirmButtonText: 'OK',
@@ -432,9 +458,11 @@ private extractServerMessage(error: unknown): string | null {
 
   private showLoading(text: string): void {
     Swal.fire({
-      title: 'Traitement en cours...', text,
-      allowOutsideClick: false, allowEscapeKey: false,
-      didOpen: () => Swal.showLoading(),
+      title:             'Traitement en cours...',
+      text,
+      allowOutsideClick: false,
+      allowEscapeKey:    false,
+      didOpen:           () => Swal.showLoading(),
     });
   }
 
@@ -444,5 +472,11 @@ private extractServerMessage(error: unknown): string | null {
 
   private showError(text: string, title = 'Erreur'): void {
     Swal.fire({ icon: 'error', title, text, confirmButtonText: 'OK' });
+  }
+
+  private extractServerMessage(error: unknown): string | null {
+    if (!error || typeof error !== 'object') return null;
+    const e = error as { error?: { message?: string }; message?: string };
+    return e?.error?.message ?? e?.message ?? null;
   }
 }
