@@ -2,116 +2,207 @@
 
 <div class="viewer-container">
 
-    <!-- SUCCESS SCREEN -->
-    <div class="success-screen" *ngIf="signedSuccess">
-        <div class="success-card">
-            <div class="success-icon">✅</div>
-            <h2 class="success-title">Document signé avec succès</h2>
-            <p class="success-msg">
-                Votre signature a bien été enregistrée.<br/>
-                Vous pouvez fermer cette fenêtre.
-            </p>
-        </div>
+  <!-- ══════════ SUCCESS SCREEN ══════════ -->
+  <div class="success-screen" *ngIf="signedSuccess">
+    <div class="success-card">
+      <div class="success-icon">✅</div>
+      <h2 class="success-title">Toutes les factures signées</h2>
+      <p class="success-msg">
+        Vos signatures ont bien été enregistrées.<br/>
+        Vous pouvez fermer cette fenêtre.
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════ MAIN CONTENT ══════════ -->
+  <ng-container *ngIf="!signedSuccess">
+
+    <!-- ── Global loader (accept call in progress) ── -->
+    <div class="global-loading" *ngIf="isLoading">
+      <div class="spinner"></div>
+      <p>Chargement des factures en cours…</p>
     </div>
 
-    <!-- PDF PAGES -->
-    <div class="pages-wrapper" *ngIf="!signedSuccess">
-        <div class="page-container" *ngFor="let p of pdfPages">
-            <img [src]="p.img" class="pdf-page" />
-            <div class="page-number-outside">
-                {{ p.pageNumber }} / {{ p.totalPages }}
+    <ng-container *ngIf="!isLoading">
+
+      <!-- ══════════ PDF SECTION ══════════ -->
+      <ng-container *ngIf="invoices.length > 0">
+
+        <!-- Pagination bar -->
+        <div class="pagination-bar" *ngIf="totalInvoices > 1">
+          <button class="pag-btn" (click)="prevPage()" [disabled]="currentPage === 0">
+            ← Précédente
+          </button>
+
+          <div class="pag-pages">
+            <button
+              *ngFor="let inv of invoices; let i = index"
+              class="pag-dot"
+              [class.active]="i === currentPage"
+              [class.signed]="inv.signed"
+              [class.errored]="!!inv.error && !inv.signed"
+              [title]="inv.session.documentIdentifier + ' — N°' + inv.session.invoiceId"
+              (click)="goToPage(i)">
+              {{ i + 1 }}
+              <span class="dot-badge signed-badge" *ngIf="inv.signed">✓</span>
+              <span class="dot-badge error-badge"  *ngIf="!!inv.error && !inv.signed">!</span>
+            </button>
+          </div>
+
+          <span class="pag-info">
+            Facture {{ currentPage + 1 }}/{{ totalInvoices }}
+            <span class="invoice-id-badge" *ngIf="currentInvoice">
+              {{ currentInvoice.session.documentIdentifier }} — N°{{ currentInvoice.session.invoiceId }}
+            </span>
+          </span>
+
+          <button class="pag-btn" (click)="nextPage()" [disabled]="currentPage === totalInvoices - 1">
+            Suivante →
+          </button>
+        </div>
+
+        <!-- Current invoice PDF -->
+        <div class="pages-wrapper" *ngIf="currentInvoice">
+
+          <div class="signed-banner" *ngIf="currentInvoice.signed">
+            ✅ Cette facture a été signée avec succès
+          </div>
+          <div class="error-banner" *ngIf="currentInvoice.error && !currentInvoice.signed">
+            ⚠️ {{ currentInvoice.error }}
+          </div>
+
+          <!-- PDF loading -->
+          <div class="invoice-loading" *ngIf="currentInvoice.loading">
+            <div class="spinner"></div>
+            <p>Chargement de la facture N°{{ currentInvoice.session.invoiceId }}…</p>
+          </div>
+
+          <!-- PDF pages -->
+          <ng-container *ngIf="!currentInvoice.loading">
+            <div class="page-container" *ngFor="let p of currentInvoice.pages">
+              <img [src]="p.img" class="pdf-page" />
+              <div class="page-number-outside">{{ p.pageNumber }} / {{ p.totalPages }}</div>
             </div>
+          </ng-container>
+
         </div>
-    </div>
 
-    <!-- SIGNATURE PANEL -->
-    <div class="signature-overlay" *ngIf="pdfPages.length > 0 && !signedSuccess">
+      </ng-container>
+      <!-- end PDF section -->
 
+      <!-- ══════════ SIGNATURE PANEL ══════════ -->
+      <div class="signature-overlay">
+
+        <!-- Terms checkbox — always visible -->
         <div class="collapsed-signature">
-            <input type="checkbox" [(ngModel)]="termsAccepted" />
-            <label>
-                Je reconnais avoir lu le document et j'accepte les termes
-            </label>
+          <input type="checkbox" [(ngModel)]="termsAccepted" id="terms" />
+          <label for="terms">
+            Je reconnais avoir lu l'ensemble des documents et j'accepte les termes
+          </label>
         </div>
 
+        <!-- Cert selector + list — only when terms accepted -->
         <div class="signature-expanded" *ngIf="termsAccepted">
 
-            <div style="margin-left: 30%;margin-right: 30%;">
-                <label class="label-cert">Sélectionnez le type de certificat</label>
-                <select [(ngModel)]="selectedCert" (change)="onCertChange()" class="ngsign-select">
-                    <option value="sscd">Signature avec SSCD</option>
-                    <option value="digigo">DigiGo</option>
-                </select>
+          <div class="cert-selector-wrap">
+            <label class="label-cert">Sélectionnez le type de certificat</label>
+            <select [(ngModel)]="selectedCert" (change)="onCertChange()" class="ngsign-select">
+              <option value="">-- Choisir --</option>
+              <option value="sscd">Signature avec SSCD</option>
+              <option value="digigo">DigiGo</option>
+            </select>
+          </div>
+
+          <div class="info-sscd" *ngIf="selectedCert === 'digigo' && certificates.length > 0">
+            Certificats détectés sur ce poste
+          </div>
+
+          <!-- Progress bar (during signing loop) -->
+          <div class="signing-progress" *ngIf="signingProgress">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill"
+                [style.width.%]="(signingProgress.current / signingProgress.total) * 100">
+              </div>
+            </div>
+            <p class="progress-text">
+              Signature :
+              <strong>{{ signingProgress.docId }}</strong> — N°{{ signingProgress.invoiceId }}
+              ({{ signingProgress.current }}/{{ signingProgress.total }})
+            </p>
+          </div>
+
+          <!-- Certificate cards -->
+          <div *ngFor="let cert of certificates; let i = index" class="cert-box">
+
+            <div class="cert-header">
+              <div>
+                <div class="cert-owner">{{ cert.alias }}</div>
+                <div class="cert-issued">
+                  Émis par : <strong>{{ getIssuerCN(cert.issuer) }}</strong>
+                </div>
+                <a class="cert-toggle"
+                  (click)="expandedCertIndex = expandedCertIndex === i ? null : i">
+                  {{ expandedCertIndex === i ? 'Moins de détails' : 'Plus de détails' }}
+                </a>
+              </div>
+              <span class="caret" [class.open]="expandedCertIndex === i"
+                (click)="expandedCertIndex = expandedCertIndex === i ? null : i">▲</span>
             </div>
 
-            <div class="info-sscd" *ngIf="selectedCert === 'digigo'">
-                Liste des certificats détectés sur ce poste
+            <div class="cert-details" *ngIf="expandedCertIndex === i">
+              <div class="detail-row">
+                <div class="detail-label">Nom usuel</div>
+                <div class="detail-value mono">{{ cert.subject }}</div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-label">Nom unique de l'émetteur</div>
+                <div class="detail-value mono">
+                  C=TN, O=AGENCE NATIONALE DE CERTIFICATION ÉLECTRONIQUE, {{ cert.issuer }}
+                </div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-label">Utilisations</div>
+                <div class="detail-value">Signature électronique</div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-label">Date de début</div>
+                <div class="detail-value">
+                  {{ cert.validFrom | date:'dd MMMM yyyy à HH:mm':'':'fr' }}
+                </div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-label">Date d'expiration</div>
+                <div class="detail-value">
+                  {{ cert.validUntil | date:'dd MMMM yyyy à HH:mm':'':'fr' }}
+                </div>
+              </div>
             </div>
 
-            <div *ngFor="let cert of certificates; let i = index" class="cert-box">
-
-                <div class="cert-header">
-                    <div>
-                        <div class="cert-owner">{{ cert.alias }}</div>
-                        <div class="cert-issued">
-                            Émis par : <strong>{{ getIssuerCN(cert.issuer) }}</strong>
-                        </div>
-                        <a class="cert-toggle" (click)="expandedCertIndex = expandedCertIndex === i ? null : i">
-                            {{ expandedCertIndex === i ? 'Moins de détails' : 'Plus de détails' }}
-                        </a>
-                    </div>
-                    <span class="caret" [class.open]="expandedCertIndex === i"
-                        (click)="expandedCertIndex = expandedCertIndex === i ? null : i">
-                        ▲
-                    </span>
-                </div>
-
-                <div class="cert-details" *ngIf="expandedCertIndex === i">
-
-                    <div class="detail-row">
-                        <div class="detail-label">Nom usuel</div>
-                        <div class="detail-value mono">{{ cert.subject }}</div>
-                    </div>
-
-                    <div class="detail-row">
-                        <div class="detail-label">Nom unique de l'émetteur</div>
-                        <div class="detail-value mono">
-                            C=TN, O=AGENCE NATIONALE DE CERTIFICATION ÉLECTRONIQUE,
-                            {{ cert.issuer }}
-                        </div>
-                    </div>
-
-                    <div class="detail-row">
-                        <div class="detail-label">Utilisations</div>
-                        <div class="detail-value">Signature électronique</div>
-                    </div>
-
-                    <div class="detail-row">
-                        <div class="detail-label">Date de début</div>
-                        <div class="detail-value">
-                            {{ cert.validFrom | date:'dd MMMM yyyy à HH:mm':'':'fr' }}
-                        </div>
-                    </div>
-
-                    <div class="detail-row">
-                        <div class="detail-label">Date d'expiration</div>
-                        <div class="detail-value">
-                            {{ cert.validUntil | date:'dd MMMM yyyy à HH:mm':'':'fr' }}
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="btn-sign-wrapper">
-                    <button class="btn-sign" (click)="signWithCert(cert)">
-                        Signer avec ce certificat
-                    </button>
-                </div>
-
+            <div class="btn-sign-wrapper">
+              <button
+                class="btn-sign"
+                [disabled]="isSigning || allSigned || invoices.length === 0"
+                (click)="signWithCert(cert)">
+                <span *ngIf="!isSigning">✍️ Signer avec ce certificat</span>
+                <span *ngIf="isSigning">Signature en cours…</span>
+              </button>
             </div>
+
+          </div>
+          <!-- end cert loop -->
 
         </div>
-    </div>
+        <!-- end signature-expanded -->
+
+      </div>
+      <!-- end signature-overlay -->
+
+    </ng-container>
+    <!-- end !isLoading -->
+
+  </ng-container>
+  <!-- end !signedSuccess -->
+
 </div>
 
 <div class="bottom-white-band"></div>

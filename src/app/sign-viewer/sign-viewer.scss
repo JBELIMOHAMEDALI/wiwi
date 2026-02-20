@@ -11,11 +11,11 @@
 }
 .top-white-band {
   top: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 .bottom-white-band {
   bottom: 0;
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
 }
 
 /* ===============================
@@ -27,6 +27,164 @@
   margin-bottom: 90px;
   padding: 20px 0;
   min-height: calc(100vh - 180px);
+}
+
+/* ===============================
+   GLOBAL LOADING
+================================ */
+.global-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 16px;
+  color: #666;
+  font-size: 15px;
+}
+
+/* ===============================
+   SPINNER
+================================ */
+.spinner {
+  width: 42px;
+  height: 42px;
+  border: 4px solid #e0d7f9;
+  border-top-color: #c6b6f3;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===============================
+   PAGINATION BAR
+================================ */
+.pagination-bar {
+  width: 900px;
+  margin: 0 auto 24px auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  flex-wrap: wrap;
+}
+
+.pag-btn {
+  padding: 7px 18px;
+  background: #c6b6f3;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) { background: #b5a2ef; }
+  &:disabled { opacity: 0.38; cursor: not-allowed; }
+}
+
+.pag-pages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  justify-content: center;
+}
+
+.pag-dot {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #d0c8e8;
+  background: #f5f3ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &.active  { background: #c6b6f3; border-color: #9b7fe8; color: #fff; }
+  &.signed  { background: #e8f5e9; border-color: #66bb6a; color: #2e7d32; }
+  &.errored { background: #fdecea; border-color: #ef9a9a; color: #c62828; }
+}
+
+.dot-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+}
+.signed-badge { background: #4caf50; }
+.error-badge  { background: #f44336; }
+
+.pag-info {
+  font-size: 13px;
+  color: #555;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.invoice-id-badge {
+  background: #ede9fb;
+  color: #6a4ec9;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===============================
+   STATUS BANNERS
+================================ */
+.signed-banner {
+  width: 900px;
+  margin: 0 auto 12px auto;
+  background: #e8f5e9;
+  border-left: 4px solid #4caf50;
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.error-banner {
+  width: 900px;
+  margin: 0 auto 12px auto;
+  background: #fdecea;
+  border-left: 4px solid #f44336;
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #c62828;
+}
+
+.invoice-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px;
+  color: #666;
+  font-size: 14px;
 }
 
 /* ===============================
@@ -43,7 +201,7 @@
 .pdf-page {
   width: 900px;
   background: white;
-  box-shadow: 0 0 14px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 14px rgba(0,0,0,0.2);
 }
 .page-number-outside {
   width: 900px;
@@ -54,7 +212,7 @@
 }
 
 /* ===============================
-   SIGNATURE BLOCK
+   SIGNATURE PANEL
 ================================ */
 .signature-overlay {
   width: 900px;
@@ -64,7 +222,7 @@
   background: #ffffff;
   padding: 14px 18px;
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -75,12 +233,16 @@
   padding: 22px;
   margin-top: 15px;
   border-radius: 6px;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.12);
 }
 
 /* ===============================
    SELECT & LABELS
 ================================ */
+.cert-selector-wrap {
+  max-width: 380px;
+  margin: 0 auto 16px auto;
+}
 .label-cert {
   font-size: 12px;
   color: #777;
@@ -93,21 +255,12 @@
   border-radius: 6px;
   border: 1px solid #ccc;
   background: #fafafa;
-  margin-bottom: 16px;
   font-size: 14px;
 }
 
 /* ===============================
    INFO BOXES
 ================================ */
-.info-digigo {
-  background: #e6f7ff;
-  border-left: 4px solid #00a2ff;
-  padding: 12px;
-  margin-bottom: 16px;
-  font-size: 14px;
-  color: #333;
-}
 .info-sscd {
   background: #f1edf7;
   border-left: 4px solid #c6b6f3;
@@ -118,10 +271,38 @@
 }
 
 /* ===============================
+   SIGNING PROGRESS
+================================ */
+.signing-progress {
+  margin-bottom: 20px;
+  background: #f5f2fd;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.progress-bar-wrap {
+  height: 8px;
+  background: #e0d7f9;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c6b6f3, #9b7fe8);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.progress-text {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+
+/* ===============================
    CERTIFICATE BOX
 ================================ */
 .cert-box {
-  background: #ffffff;
+  background: #fafafa;
   border-radius: 6px;
   border: 1px solid #e2e2e2;
   padding: 16px;
@@ -154,9 +335,7 @@
   cursor: pointer;
   user-select: none;
   transition: transform 0.2s ease;
-}
-.caret.open {
-  transform: rotate(180deg);
+  &.open { transform: rotate(180deg); }
 }
 
 /* ===============================
@@ -174,9 +353,7 @@
   font-size: 13px;
   align-items: flex-start;
 }
-.detail-label {
-  color: #777;
-}
+.detail-label { color: #777; }
 .detail-value {
   color: #222;
   word-break: break-word;
@@ -188,20 +365,15 @@
 }
 
 /* ===============================
-   SIGN BUTTON WRAPPER
+   SIGN BUTTON
 ================================ */
 .btn-sign-wrapper {
   display: flex;
   justify-content: center;
   padding-top: 16px;
 }
-
-/* ===============================
-   SIGN BUTTON
-================================ */
 .btn-sign {
-  display: block;
-  padding: 8px 26px;
+  padding: 10px 32px;
   background: #c6b6f3;
   border: none;
   border-radius: 4px;
@@ -209,21 +381,12 @@
   font-size: 14px;
   cursor: pointer;
   transition: background 0.2s ease;
-}
-.btn-sign:hover {
-  background: #b5a2ef;
-}
-.btn-sign:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+
+  &:hover:not(:disabled) { background: #b5a2ef; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-/* ===============================
-   CHECKBOX COLOR
-================================ */
-input[type="checkbox"]:checked {
-  accent-color: #c6b6f3;
-}
+input[type="checkbox"]:checked { accent-color: #c6b6f3; }
 
 /* ===============================
    SUCCESS SCREEN
@@ -235,88 +398,43 @@ input[type="checkbox"]:checked {
   min-height: calc(100vh - 180px);
   padding: 40px 20px;
 }
-
 .success-card {
-  background: #ffffff;
+  background: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.10);
   padding: 56px 64px;
   text-align: center;
   max-width: 480px;
   width: 100%;
 }
-
-.success-icon {
-  font-size: 64px;
-  margin-bottom: 24px;
-  line-height: 1;
-}
-
-.success-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #222;
-  margin-bottom: 12px;
-}
-
-.success-msg {
-  font-size: 15px;
-  color: #666;
-  line-height: 1.6;
-}
+.success-icon { font-size: 64px; margin-bottom: 24px; line-height: 1; }
+.success-title { font-size: 22px; font-weight: 700; color: #222; margin-bottom: 12px; }
+.success-msg { font-size: 15px; color: #666; line-height: 1.6; }
 
 /* ===============================
    RESPONSIVE
 ================================ */
 @media (max-width: 1024px) {
-  .pages-wrapper,
-  .page-container,
-  .pdf-page,
-  .page-number-outside,
-  .signature-overlay {
+  .pages-wrapper, .page-container, .pdf-page,
+  .page-number-outside, .signature-overlay,
+  .pagination-bar, .signed-banner, .error-banner {
     width: 100%;
   }
-  .pdf-page {
-    max-width: 100%;
-  }
+  .pdf-page { max-width: 100%; }
 }
-
 @media (max-width: 768px) {
-  .viewer-container {
-    padding: 10px;
-  }
-  .signature-expanded {
-    padding: 16px;
-  }
-  .detail-row {
-    grid-template-columns: 1fr;
-  }
-  .mono {
-    font-size: 11px;
-  }
-  .btn-sign {
-    width: 100%;
-  }
-  .success-card {
-    padding: 40px 24px;
-  }
+  .viewer-container { padding: 10px; }
+  .signature-expanded { padding: 16px; }
+  .detail-row { grid-template-columns: 1fr; }
+  .mono { font-size: 11px; }
+  .btn-sign { width: 100%; }
+  .success-card { padding: 40px 24px; }
+  .pagination-bar { gap: 8px; }
 }
-
 @media (max-width: 480px) {
-  .collapsed-signature {
-    font-size: 13px;
-    flex-wrap: wrap;
-  }
-  .cert-owner {
-    font-size: 14px;
-  }
-  .cert-issued {
-    font-size: 12px;
-  }
-  .success-icon {
-    font-size: 48px;
-  }
-  .success-title {
-    font-size: 18px;
-  }
+  .collapsed-signature { font-size: 13px; flex-wrap: wrap; }
+  .cert-owner { font-size: 14px; }
+  .pag-dot { width: 28px; height: 28px; font-size: 11px; }
+  .success-icon { font-size: 48px; }
+  .success-title { font-size: 18px; }
 }
