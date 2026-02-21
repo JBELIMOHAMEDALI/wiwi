@@ -91,8 +91,15 @@
       <!-- end PDF section -->
 
       <!-- ══════════ SIGNATURE PANEL ══════════ -->
-      <div class="signature-overlay">
-
+<div
+  class="signature-overlay"
+  *ngIf="
+    !isLoading &&
+    currentInvoice &&
+    !currentInvoice.loading &&
+    !currentInvoice.error
+  "
+>
         <!-- Terms checkbox — always visible -->
         <div class="collapsed-signature">
           <input type="checkbox" [(ngModel)]="termsAccepted" id="terms" />

@@ -156,11 +156,28 @@ export class SignViewer implements OnInit, OnDestroy {
       // Load all PDFs in parallel
       await Promise.all(this.invoices.map((_, idx) => this.loadInvoicePdf(idx)));
 
-    } catch (error: unknown) {
-      console.error('[acceptAndLoadPdfs]', error);
-      const msg = this.extractServerMessage(error) ?? 'Impossible de charger les factures.';
-      this.showError(msg);
-    } finally {
+} catch (error: unknown) {
+  console.error('[acceptAndLoadPdfs]', error);
+
+  const httpError = error as any;
+
+  if (httpError?.status === 400 || httpError?.status === 401) {
+    this.showError(
+      'Cette session a expiré. Veuillez relancer le processus de signature.',
+      'Session expirée'
+    );
+  } else if (httpError?.status === 404) {
+    this.showError(
+      'Le lien de signature est invalide ou n’existe plus.',
+      'Lien invalide'
+    );
+  } else {
+    const msg =
+      this.extractServerMessage(error) ??
+      'Impossible de charger les factures.';
+    this.showError(msg);
+  }
+}finally {
       this.isLoading = false;
     }
   }
@@ -351,7 +368,7 @@ export class SignViewer implements OnInit, OnDestroy {
 
   private async prepareSign(session: InvoiceSession, cert: SscdCertificate): Promise<PrepareSignResponse> {
     const url     = `${API_BASE}/api/sign/${session.documentIdentifier}/prepare`;
-    const payload = { alias: cert.alias, token: session.signingSessionId, serialNumber: cert.serialNumber };
+    const payload = { alias: cert.alias, signingSessionId: session.signingSessionId, serialNumber: cert.serialNumber };
     try {
       const response = await firstValueFrom(
         this.http.post<PrepareSignResponse>(url, payload, { headers: this.jsonHeaders() })
