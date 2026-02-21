@@ -67,11 +67,13 @@ interface AgentSignResponse {
 }
 
 interface InvoiceView {
-  session:  InvoiceSession;
-  pages:    PdfPage[];
-  loading:  boolean;
-  error:    string | null;
-  signed:   boolean;
+  session:      InvoiceSession;
+  pages:        PdfPage[];
+  loading:      boolean;
+  error:        string | null;
+  signed:       boolean;
+  prepareResp?: PrepareSignResponse;  // stored after step 1 (prepare)
+  agentResp?:   AgentSignResponse;    // stored after step 2 (agent sign)
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -89,7 +91,7 @@ export class SignViewer implements OnInit, OnDestroy {
   private mainDocumentId = '';
 
   // ── Public state ──────────────────────────────────────────────────────────
-  isLoading      = true;   // true during initial accept + PDF load
+  isLoading      = true;
   termsAccepted  = false;
   selectedCert   = '';
   certificates:      SscdCertificate[] = [];
@@ -120,7 +122,6 @@ export class SignViewer implements OnInit, OnDestroy {
       return;
     }
 
-    // Accept on page load → fetch invoices → load PDFs → show first one
     this.acceptAndLoadPdfs();
   }
 
@@ -131,6 +132,7 @@ export class SignViewer implements OnInit, OnDestroy {
 
   // ─────────────────────────────────────────────────────────────────────────
   // ON PAGE LOAD: accept once, then load all PDFs
+  // POST /api/sign/{mainDocumentId}/accept
   // ─────────────────────────────────────────────────────────────────────────
 
   async acceptAndLoadPdfs(): Promise<void> {
@@ -148,36 +150,40 @@ export class SignViewer implements OnInit, OnDestroy {
         return;
       }
 
+      // Store all sessions returned by accept — signingSessionId per invoice
+      // is preserved here and will be used as "token" in completeSign
       this.invoices = resp.signingSessions.map(session => ({
-        session, pages: [], loading: true, error: null, signed: false,
+        session,
+        pages:   [],
+        loading: true,
+        error:   null,
+        signed:  false,
       }));
       this.currentPage = 0;
 
       // Load all PDFs in parallel
       await Promise.all(this.invoices.map((_, idx) => this.loadInvoicePdf(idx)));
 
-} catch (error: unknown) {
-  console.error('[acceptAndLoadPdfs]', error);
+    } catch (error: unknown) {
+      console.error('[acceptAndLoadPdfs]', error);
 
-  const httpError = error as any;
+      const httpError = error as any;
 
-  if (httpError?.status === 400 || httpError?.status === 401) {
-    this.showError(
-      'Cette session a expiré. Veuillez relancer le processus de signature.',
-      'Session expirée'
-    );
-  } else if (httpError?.status === 404) {
-    this.showError(
-      'Le lien de signature est invalide ou n’existe plus.',
-      'Lien invalide'
-    );
-  } else {
-    const msg =
-      this.extractServerMessage(error) ??
-      'Impossible de charger les factures.';
-    this.showError(msg);
-  }
-}finally {
+      if (httpError?.status === 400 || httpError?.status === 401) {
+        this.showError(
+          'Cette session a expiré. Veuillez relancer le processus de signature.',
+          'Session expirée'
+        );
+      } else if (httpError?.status === 404) {
+        this.showError(
+          "Le lien de signature est invalide ou n'existe plus.",
+          'Lien invalide'
+        );
+      } else {
+        const msg = this.extractServerMessage(error) ?? 'Impossible de charger les factures.';
+        this.showError(msg);
+      }
+    } finally {
       this.isLoading = false;
     }
   }
@@ -188,18 +194,18 @@ export class SignViewer implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────────────
 
   private async loadInvoicePdf(index: number): Promise<void> {
-    const inv    = this.invoices[index];
-    const { invoiceId } = inv.session;
-    const pdfUrl = `${API_BASE}/sign/${this.mainDocumentId}/invoices/${invoiceId}/pdf`;
-    let objectUrl: string | null = null;
+    const inv               = this.invoices[index];
+    const { invoiceId }     = inv.session;
+    const pdfUrl            = `${API_BASE}/sign/${this.mainDocumentId}/invoices/${invoiceId}/pdf`;
+    let   objectUrl: string | null = null;
 
     try {
       const pdfBlob = await firstValueFrom(
         this.http.get(pdfUrl, { responseType: 'blob' }).pipe(takeUntil(this.destroy$))
       );
 
-      objectUrl = URL.createObjectURL(pdfBlob);
-      const pdf = await pdfjsLib.getDocument(objectUrl).promise;
+      objectUrl      = URL.createObjectURL(pdfBlob);
+      const pdf      = await pdfjsLib.getDocument(objectUrl).promise;
       const pages: PdfPage[] = [];
 
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -228,7 +234,7 @@ export class SignViewer implements OnInit, OnDestroy {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Certificate type change — only called after terms accepted
+  // Certificate type change
   // ─────────────────────────────────────────────────────────────────────────
 
   onCertChange(): void {
@@ -244,8 +250,11 @@ export class SignViewer implements OnInit, OnDestroy {
       );
       if (!res || (res as any).success === false) {
         this.certificates = [];
-        Swal.fire({ icon: 'warning', title: 'Aucun certificat',
-          text: "Aucun certificat valide n'a été trouvé sur ce poste.", confirmButtonText: 'OK' });
+        Swal.fire({
+          icon: 'warning', title: 'Aucun certificat',
+          text: "Aucun certificat valide n'a été trouvé sur ce poste.",
+          confirmButtonText: 'OK',
+        });
         return;
       }
       this.certificates = Array.isArray(res) ? res : [];
@@ -253,74 +262,99 @@ export class SignViewer implements OnInit, OnDestroy {
       this.certificates = [];
       const httpError = error as { status?: number };
       if (httpError?.status === 0) {
-        Swal.fire({ icon: 'error', title: 'Agent PROSign non détecté',
+        Swal.fire({
+          icon: 'error', title: 'Agent PROSign non détecté',
           text: "Veuillez lancer l'application PROSign Agent sur votre ordinateur, puis réessayer.",
-          confirmButtonText: 'OK' });
+          confirmButtonText: 'OK',
+        });
       } else {
-        Swal.fire({ icon: 'warning', title: 'Clé USB non détectée',
+        Swal.fire({
+          icon: 'warning', title: 'Clé USB non détectée',
           text: 'Veuillez insérer votre clé USB contenant un certificat valide.',
-          confirmButtonText: 'OK' });
+          confirmButtonText: 'OK',
+        });
       }
     }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // SIGN BUTTON CLICK: loop prepare → agent → complete for each invoice
-  // accept was already done at page load — sessions are in this.invoices
+  // SIGN BUTTON CLICK
+  // For each invoice: prepare → agent sign → complete
+  //
+  // Data chain:
+  //   ACCEPT response
+  //     └─ session.signingSessionId ──► prepareSign body  (alias, signingSessionId, serialNumber)
+  //                                         └─ prepareResp.digest ──► signViaAgent body (digest, algorithm, alias)
+  //                                                                        └─ agentResp.signatureValue  ┐
+  //                                                                        └─ agentResp.certificate     ├──► completeSign body
+  //                                     session.signingSessionId as "token" ────────────────────────────┘
   // ─────────────────────────────────────────────────────────────────────────
 
   async signWithCert(cert: SscdCertificate): Promise<void> {
 
     if (!this.termsAccepted) {
-      Swal.fire({ icon: 'warning', title: 'Attention',
-        text: 'Veuillez accepter les termes avant de signer.', confirmButtonText: 'OK' });
+      Swal.fire({
+        icon: 'warning', title: 'Attention',
+        text: 'Veuillez accepter les termes avant de signer.',
+        confirmButtonText: 'OK',
+      });
       return;
     }
 
     if (this.isSigning || this.invoices.length === 0) return;
     this.isSigning = true;
 
-    const total  = this.invoices.length;
+    const total   = this.invoices.length;
     const failed: string[] = [];
 
     try {
-      // Agent check
+      // ── Agent / certificate check ────────────────────────────────────────
       this.showLoading('Vérification du certificat...');
       const isValid = await this.authPdf.verifyAgentAndCertificate();
-      if (!isValid) { this.isSigning = false; Swal.close(); return; }
+      if (!isValid) {
+        this.isSigning = false;
+        Swal.close();
+        return;
+      }
 
-      // Loop: one invoice at a time
+      // ── Loop: sign each invoice sequentially ─────────────────────────────
       for (let i = 0; i < this.invoices.length; i++) {
         const inv = this.invoices[i];
         const { invoiceId, documentIdentifier } = inv.session;
 
-        // Navigate to current invoice so user sees progress
         this.currentPage     = i;
         this.signingProgress = { current: i + 1, total, docId: documentIdentifier, invoiceId };
 
         try {
-          // 1. Prepare
+          // ── Step 1: Prepare ─────────────────────────────────────────────
+          // Send: alias (cert), signingSessionId (from accept), serialNumber (cert)
+          // Receive: digest (used in step 2)
           this.updateLoading(
             `Facture ${i + 1}/${total} — ${documentIdentifier} (N°${invoiceId})\nPréparation…`
           );
           const prepareResp = await this.prepareSign(inv.session, cert);
+          inv.prepareResp   = prepareResp; // store for reference / debugging
 
-          // 2. Agent signs
+          // ── Step 2: Agent local sign ────────────────────────────────────
+          // Send: digest (from prepare), algorithm (cert), alias (cert)
+          // Receive: signatureValue + certificate (used in step 3)
           this.updateLoading(
             `Facture ${i + 1}/${total} — ${documentIdentifier} (N°${invoiceId})\nSignature locale…`
           );
           const agentResp = await this.signViaAgent(prepareResp.digest, cert);
+          inv.agentResp   = agentResp; // store for reference / debugging
 
-          // 3. Complete
+          // ── Step 3: Complete ────────────────────────────────────────────
+          // Send: token (signingSessionId from accept), signatureValue + certificate (from agent), algorithm (cert)
           this.updateLoading(
             `Facture ${i + 1}/${total} — ${documentIdentifier} (N°${invoiceId})\nFinalisation…`
           );
-          await this.completeSign(inv.session, prepareResp, agentResp, cert);
+          await this.completeSign(inv.session, agentResp, cert);
 
           inv.signed = true;
 
         } catch (err: unknown) {
-          console.error(`[loop] invoice ${invoiceId}`, err);
+          console.error(`[signWithCert] invoice ${invoiceId}`, err);
           failed.push(`${documentIdentifier} (N°${invoiceId})`);
           inv.error = err instanceof Error ? err.message : 'Erreur inconnue';
         }
@@ -362,18 +396,38 @@ export class SignViewer implements OnInit, OnDestroy {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Prepare — POST /api/sign/{documentIdentifier}/prepare
-  // Body: { alias, token: signingSessionId, serialNumber }
+  // Step 1 — Prepare
+  // POST /api/sign/{documentIdentifier}/prepare
+  //
+  // Request body:
+  //   {
+  //     "alias":            "Mouheb ben dahmen",          ← from selected cert
+  //     "signingSessionId": "cf25d5b9-73fb-427e-...",    ← from accept response
+  //     "serialNumber":     "51255aefsdg22gg5666"         ← from selected cert
+  //   }
+  //
+  // Response used: prepareResp.digest → passed to signViaAgent
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async prepareSign(session: InvoiceSession, cert: SscdCertificate): Promise<PrepareSignResponse> {
-    const url     = `${API_BASE}/api/sign/${session.documentIdentifier}/prepare`;
-    const payload = { alias: cert.alias, signingSessionId: session.signingSessionId, serialNumber: cert.serialNumber };
+  private async prepareSign(
+    session: InvoiceSession,
+    cert:    SscdCertificate
+  ): Promise<PrepareSignResponse> {
+const url = `${API_BASE}/api/sign/${this.mainDocumentId}/prepare`;
+
+    const payload = {
+      alias:            cert.alias,
+      signingSessionId: session.signingSessionId, // from accept
+      serialNumber:     cert.serialNumber,
+    };
+
     try {
       const response = await firstValueFrom(
         this.http.post<PrepareSignResponse>(url, payload, { headers: this.jsonHeaders() })
       );
-      if (!response?.digest) throw new Error('Digest absent de la réponse de préparation.');
+      if (!response?.digest) {
+        throw new Error('Digest absent de la réponse de préparation.');
+      }
       return response;
     } catch (error: unknown) {
       const msg = this.extractServerMessage(error);
@@ -382,16 +436,36 @@ export class SignViewer implements OnInit, OnDestroy {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Agent sign — POST localhost:53821/api/certificates/signe
-  // Body: { digest, algorithm, alias }
+  // Step 2 — Agent local sign
+  // POST http://localhost:53821/api/certificates/signe
+  //
+  // Request body:
+  //   {
+  //     "digest":    "...",           ← from prepareSign response
+  //     "algorithm": "SHA1WithRSA",  ← from selected cert
+  //     "alias":     "Mouheb ben dahmen" ← from selected cert
+  //   }
+  //
+  // Response used: agentResp.signatureValue + agentResp.certificate → passed to completeSign
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async signViaAgent(digest: string, cert: SscdCertificate): Promise<AgentSignResponse> {
-    const payload = { digest, algorithm: cert.algorithm, alias: cert.alias };
+  private async signViaAgent(
+    digest: string,
+    cert:   SscdCertificate
+  ): Promise<AgentSignResponse> {
+    const payload = {
+      digest:    digest,       // from prepareSign
+      algorithm: cert.algorithm,
+      alias:     cert.alias,
+    };
+
     try {
       const response = await firstValueFrom(
-        this.http.post<AgentSignResponse>(`${AGENT_BASE}/api/certificates/signe`,
-          payload, { headers: this.jsonHeaders() })
+        this.http.post<AgentSignResponse>(
+          `${AGENT_BASE}/api/certificates/signe`,
+          payload,
+          { headers: this.jsonHeaders() }
+        )
       );
       if (!response?.signatureValue || !response?.certificate) {
         throw new Error("Réponse de l'agent invalide.");
@@ -400,29 +474,45 @@ export class SignViewer implements OnInit, OnDestroy {
     } catch (error: unknown) {
       if (error instanceof Error) throw error;
       const httpError = error as { status?: number };
-      if (httpError?.status === 0) throw new Error("L'agent PROSign n'est plus accessible.");
+      if (httpError?.status === 0) {
+        throw new Error("L'agent PROSign n'est plus accessible.");
+      }
       throw new Error("Échec de la signature via l'agent local.");
     }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Complete — POST /api/sign/{documentIdentifier}/complete
-  // Body: { signingSessionId (from prepare), signatureValue, certificate, algorithm }
+  // Step 3 — Complete
+  // POST https://api.prosign-lis.com/api/signature/complete
+  //
+  // Request body:
+  //   {
+  //     "token":          "cf25d5b9-73fb-427e-...",  ← signingSessionId from ACCEPT (not prepare)
+  //     "signatureValue": "dGVzdF9zaWdu...",          ← from agent response
+  //     "certificate":    "LS0tLS1CRUdJ...",          ← from agent response
+  //     "algorithm":      "SHA1WithRSA"               ← from selected cert
+  //   }
   // ─────────────────────────────────────────────────────────────────────────
 
   private async completeSign(
-    session: InvoiceSession, prepareResp: PrepareSignResponse,
-    agentResp: AgentSignResponse, cert: SscdCertificate
+    session:   InvoiceSession,
+    agentResp: AgentSignResponse,
+    cert:      SscdCertificate
   ): Promise<void> {
-    const url     = `${API_BASE}/api/sign/${session.documentIdentifier}/complete`;
-    const payload = {
-      signingSessionId: prepareResp.signingSessionId,
-      signatureValue:   agentResp.signatureValue,
-      certificate:      agentResp.certificate,
-      algorithm:        cert.algorithm,
-    };
+    // NOTE: endpoint is /api/signature/complete (not /api/sign/.../complete)
+const url = `${API_BASE}/api/sign/${this.mainDocumentId}/complete`;
+
+const payload = {
+  signingSessionId: session.signingSessionId,
+  signatureValue:   agentResp.signatureValue,
+  certificate:      agentResp.certificate,
+  algorithm:        cert.algorithm,
+};
+
     try {
-      await firstValueFrom(this.http.post(url, payload, { headers: this.jsonHeaders() }));
+      await firstValueFrom(
+        this.http.post(url, payload, { headers: this.jsonHeaders() })
+      );
     } catch (error: unknown) {
       const msg = this.extractServerMessage(error);
       throw new Error(msg ?? `Échec de la finalisation pour la facture ${session.invoiceId}.`);
@@ -464,11 +554,16 @@ export class SignViewer implements OnInit, OnDestroy {
   }
 
   private showLoading(text: string): void {
-    Swal.fire({ title: 'Traitement en cours…', text,
-      allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+      title: 'Traitement en cours…', text,
+      allowOutsideClick: false, allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
   }
 
-  private updateLoading(text: string): void { Swal.update({ text }); }
+  private updateLoading(text: string): void {
+    Swal.update({ text });
+  }
 
   private showError(text: string, title = 'Erreur'): void {
     Swal.fire({ icon: 'error', title, text, confirmButtonText: 'OK' });
